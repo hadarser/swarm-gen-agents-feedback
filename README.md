@@ -16,3 +16,30 @@ The Swarm library, developed by OpenAI, provides tools for creating and managing
 ### Installation
 
 1. Clone the repository:
+
+   ```sh
+   git clone https://github.com/hadarser/swarm-feedback.git
+   cd swarm-feedback
+   ```
+
+2. Create a virtual environment:
+
+   ```sh
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
+   ```
+
+3. Install the required packages:
+   ```sh
+   pip install -r requirements.txt
+   ```
+
+### Usage
+
+To use the the swarm with regular OpenAI client, copy the `sample.env` file to `.env` and add your OpenAI API key.
+
+```
+cp sample.env .env
+```
+
+You can also change the client used by the swarm by changing the `client` variable in the `main.py` file.
