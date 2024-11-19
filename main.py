@@ -1,7 +1,6 @@
 from swarm import Agent, Swarm
 from utils.client import openai_client
 from utils.run_loop import run_loop
-from utils.print_utils import process_and_print_streaming_response, pretty_print_messages
 
 from swarm.types import Result
 from typing import Dict, List
@@ -16,14 +15,23 @@ def create_question_analyzer():
     def analyze_question(context_variables: Dict) -> Result:
         return Result(
             value="Analysis complete",
-            # agent=interview_agent,  # TODO: Add the interview agent
+            agent=interview_agent,
             context_variables={
                 **context_variables,
                 "question_analyzed": True,
                 "questions_generated": False,  # Flag to indicate we need to generate questions
                 "current_question_index": -1,  # Will increment to 0 for first question
                 "questions": [],  # Will store generated questions
+                "conversation_ended": False,  # Flag to indicate the conversation has ended
             },
+        )
+
+    def end_conversation(context_variables: Dict) -> Result:
+        """End the conversation if there are no more questions to ask."""
+        return Result(
+            value="Conversation ended",
+            agent=None,
+            context_variables={**context_variables, "conversation_ended": True},
         )
 
     return Agent(
@@ -31,14 +39,118 @@ def create_question_analyzer():
         instructions="""You are an expert at analyzing workplace feedback questions. 
         Your role is to understand the core aspects of the feedback question that needs to be answered.
         Consider what areas of performance, behavior, or impact would be most relevant to address.
-        After analysis, hand off to the interview agent.""",
+        After analysis, hand off to the interview agent.
+        If the user indicates the conversation is over, end the conversation.""",
         model=MODEL,
-        functions=[analyze_question],
+        functions=[analyze_question, end_conversation],
+    )
+
+
+def create_interview_agent():
+    """Creates the InterviewAgent that generates and asks relevant feedback questions"""
+
+    def generate_questions(
+            context_variables: Dict,
+            question_1: str,
+            question_2: str,
+            question_3: str | None = None,
+        ) -> Result:
+        """Generate relevant questions based on the original feedback question. You should generate 2-3 questions."""
+        print("EXISTING KEYS: ", context_variables.keys())
+        questions = [question_1, question_2]
+        if question_3:
+            questions.append(question_3)
+        questions.append("Would you like to add any other specific examples or observations about your coworker?")
+
+        return Result(
+            value="Questions generated",
+            agent=interview_agent,
+            context_variables={
+                **context_variables,
+                "questions_generated": True,
+                "questions": questions,
+            },
+        )
+
+    def ask_next_question(context_variables: Dict) -> Result:
+        """Ask the next question in the sequence."""
+        print("EXISTING KEYS: ", context_variables.keys())
+        questions = context_variables.get("questions", [])
+        current_index = context_variables.get("current_question_index", -1)
+        next_index = current_index + 1
+
+        if next_index >= len(questions):
+            # We've asked all questions, move to feedback analyzer
+            return Result(
+                value="Interview complete",
+                # agent=feedback_analyzer,  # TODO: Add feedback analyzer agent
+                context_variables={**context_variables, "interview_complete": True},
+            )
+
+        # Return next question and update index
+        return Result(
+            value=questions[next_index],
+            agent=interview_agent,
+            context_variables={
+                **context_variables,
+                "current_question_index": next_index,
+            },
+        )
+
+    def process_response(context_variables: Dict, response: str) -> Result:
+        """Process the user's response and store it."""
+        print("EXISTING KEYS: ", context_variables.keys())
+        responses = context_variables.get("responses", [])
+        current_index = context_variables.get("current_question_index", 0)
+
+        # Store the response with its corresponding question
+        responses.append(
+            {
+                "question": context_variables["questions"][current_index],
+                "response": response,
+            }
+        )
+
+        return Result(
+            value="Response processed",
+            agent=interview_agent,
+            context_variables={**context_variables, "responses": responses},
+        )
+
+    return Agent(
+        name="InterviewAgent",
+        instructions="""You are an expert at gathering specific, actionable feedback about coworkers.
+        
+        When generating questions:
+        1. Consider the original feedback question carefully
+        2. Generate 2-3 specific, open-ended questions that will help gather relevant examples and insights
+        3. Make questions clear and focused on observable behaviors or outcomes
+        4. Ensure questions cover different aspects of the feedback area
+        5. Refer to the subject of the feedback as 'your coworker'
+        
+        When asking questions:
+        1. Ask one question at a time
+        2. Process and acknowledge each response
+        3. Use the response content to inform the context of subsequent questions
+        4. Be professional and courteous
+        
+        If you haven't generated questions yet:
+        1. Call generate_questions() first
+        
+        If you have generated questions:
+        1. Call ask_next_question() to get the next question
+        2. After receiving a response, call process_response()
+        3. Then call ask_next_question() again until all questions are asked
+        
+        Remember to maintain a natural conversation flow while gathering specific, relevant information.""",
+        model=MODEL,
+        functions=[generate_questions, ask_next_question, process_response],
     )
 
 
 # Create the agents
 analysis_agent = create_question_analyzer()
+interview_agent = create_interview_agent()
 
 if __name__ == "__main__":
     opening_message = "Hello user, I am going to help you with analyzing the feedback question. Please provide the feedback question you would like me to analyze."
@@ -50,4 +162,5 @@ if __name__ == "__main__":
         openai_client=openai_client,
         opening_message=opening_message,
         max_turns=MAX_TURNS,
+        debug=True,
     )
