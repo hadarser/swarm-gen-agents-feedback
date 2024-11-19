@@ -2,7 +2,8 @@
 https://github.com/openai/swarm/blob/main/swarm/repl/repl.py
 """
 
-from swarm import Swarm
+from typing import Any
+from swarm import Agent, Swarm
 
 from utils.print_utils import (
     pretty_print_messages,
@@ -11,17 +12,22 @@ from utils.print_utils import (
 
 
 def run_loop(
-    starting_agent,
-    context_variables=None,
-    stream=False,
-    debug=False,
-    openai_client=None,
+    starting_agent: Agent,
+    context_variables: dict | None = None,
+    stream: bool = False,
+    debug: bool = False,
+    openai_client: Any | None = None,
+    opening_message: str | None = None,
+    **kwargs,
 ) -> None:
     client = Swarm(client=openai_client)
     print("Starting Swarm CLI 🐝")
 
     messages = []
     agent = starting_agent
+
+    if opening_message:
+        print(opening_message)
 
     while True:
         user_input = input("\033[90mUser\033[0m: ")
@@ -33,6 +39,7 @@ def run_loop(
             context_variables=context_variables or {},
             stream=stream,
             debug=debug,
+            **kwargs,
         )
 
         if stream:
