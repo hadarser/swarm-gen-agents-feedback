@@ -13,25 +13,30 @@ def create_question_analyzer():
     """Creates the QuestionAnalyzer agent that understands the feedback question"""
 
     def analyze_question(context_variables: Dict) -> Result:
+        context_variables["question_analyzed"] = True
+        context_variables["questions_generated"] = (
+            False  # Flag to indicate we need to generate questions
+        )
+        context_variables["current_question_index"] = (
+            -1
+        )  # Will increment to 0 for first question
+        context_variables["questions"] = []  # Will store generated questions
+        context_variables["conversation_ended"] = (
+            False  # Flag to indicate the conversation has ended
+        )
         return Result(
             value="Analysis complete",
             agent=interview_agent,
-            context_variables={
-                **context_variables,
-                "question_analyzed": True,
-                "questions_generated": False,  # Flag to indicate we need to generate questions
-                "current_question_index": -1,  # Will increment to 0 for first question
-                "questions": [],  # Will store generated questions
-                "conversation_ended": False,  # Flag to indicate the conversation has ended
-            },
+            context_variables=context_variables,
         )
 
     def end_conversation(context_variables: Dict) -> Result:
         """End the conversation if there are no more questions to ask."""
+        context_variables["conversation_ended"] = True
         return Result(
             value="Conversation ended",
             agent=None,
-            context_variables={**context_variables, "conversation_ended": True},
+            context_variables=context_variables,
         )
 
     return Agent(
@@ -50,58 +55,54 @@ def create_interview_agent():
     """Creates the InterviewAgent that generates and asks relevant feedback questions"""
 
     def generate_questions(
-            context_variables: Dict,
-            question_1: str,
-            question_2: str,
-            question_3: str | None = None,
-        ) -> Result:
+        context_variables: Dict,
+        question_1: str,
+        question_2: str,
+        question_3: str | None = None,
+    ) -> Result:
         """Generate relevant questions based on the original feedback question. You should generate 2-3 questions."""
-        print("EXISTING KEYS: ", context_variables.keys())
         questions = [question_1, question_2]
         if question_3:
             questions.append(question_3)
-        questions.append("Would you like to add any other specific examples or observations about your coworker?")
+        questions.append(
+            "Would you like to add any other specific examples or observations about your coworker?"
+        )
 
+        context_variables["questions"] = questions
+        context_variables["questions_generated"] = True
         return Result(
             value="Questions generated",
             agent=interview_agent,
-            context_variables={
-                **context_variables,
-                "questions_generated": True,
-                "questions": questions,
-            },
+            context_variables=context_variables,
         )
 
     def ask_next_question(context_variables: Dict) -> Result:
         """Ask the next question in the sequence."""
-        print("EXISTING KEYS: ", context_variables.keys())
         questions = context_variables.get("questions", [])
-        current_index = context_variables.get("current_question_index", -1)
+        current_index = context_variables["current_question_index"]
         next_index = current_index + 1
 
         if next_index >= len(questions):
             # We've asked all questions, move to feedback analyzer
+            context_variables["interview_complete"] = True
             return Result(
                 value="Interview complete",
                 # agent=feedback_analyzer,  # TODO: Add feedback analyzer agent
-                context_variables={**context_variables, "interview_complete": True},
+                context_variables=context_variables,
             )
 
         # Return next question and update index
+        context_variables["current_question_index"] = next_index
         return Result(
             value=questions[next_index],
             agent=interview_agent,
-            context_variables={
-                **context_variables,
-                "current_question_index": next_index,
-            },
+            context_variables=context_variables,
         )
 
     def process_response(context_variables: Dict, response: str) -> Result:
         """Process the user's response and store it."""
-        print("EXISTING KEYS: ", context_variables.keys())
         responses = context_variables.get("responses", [])
-        current_index = context_variables.get("current_question_index", 0)
+        current_index = context_variables["current_question_index"]
 
         # Store the response with its corresponding question
         responses.append(
@@ -111,10 +112,11 @@ def create_interview_agent():
             }
         )
 
+        context_variables["responses"] = responses
         return Result(
             value="Response processed",
             agent=interview_agent,
-            context_variables={**context_variables, "responses": responses},
+            context_variables=context_variables,
         )
 
     return Agent(

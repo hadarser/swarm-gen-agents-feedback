@@ -29,6 +29,9 @@ def run_loop(
     if opening_message:
         print(opening_message)
 
+    if context_variables is None:
+        context_variables = {}
+
     while True:
         user_input = input("\033[90mUser\033[0m: ")
         messages.append({"role": "user", "content": user_input})
@@ -36,7 +39,7 @@ def run_loop(
         response = client.run(
             agent=agent,
             messages=messages,
-            context_variables=context_variables or {},
+            context_variables=context_variables,
             stream=stream,
             debug=debug,
             **kwargs,
@@ -48,4 +51,6 @@ def run_loop(
             pretty_print_messages(response.messages)
 
         messages.extend(response.messages)
+        if response.context_variables:
+            context_variables = response.context_variables
         agent = response.agent
