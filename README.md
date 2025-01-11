@@ -38,8 +38,14 @@ The Swarm library, developed by OpenAI, provides tools for creating and managing
 
 To use the the swarm with regular OpenAI client, copy the `sample.env` file to `.env` and add your OpenAI API key.
 
-```
+```sh
 cp sample.env .env
 ```
 
 You can also change the client used by the swarm by changing the `client` variable in the `main.py` file.
+
+Then, run the following command to start the multi-agent system:
+
+```sh
+python main.py
+```
